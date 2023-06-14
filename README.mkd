@@ -1,0 +1,49 @@
+The `obis` crate provides parsers and utilities to work with the OBIS codes as defined by the IEC
+62056-61 standard.
+
+This crate is `no_std`, making it suitable for use in embedded environments and IoT use-cases.
+
+# Examples
+
+IEC 62056-61 defines two kinds of OBIS codes. One is a full code with all groups present. This code
+is not particularly popular, but is unambiguous and does not require context for interpretation. In
+order to parse these codes, use the [`Code`] type:
+
+```rust
+use obis::Code;
+
+let input = b"0-0:1.0.0*255";
+let (code, _remainder) = Code::parse(input).expect("valid code should parse successfully");
+assert_eq!(code.a, 0);
+assert_eq!(code.c, 1);
+assert_eq!(code.f, 255);
+```
+
+Note that the implementation today requires use of the delimiters that may be different from what
+may be used in your application. Issues describing different use cases and PRs to change the
+behaviour are welcome!
+
+In the Annex A a reduced OBIS code is defined. This code allows for omission of certain parts of
+the OBIS code, but in doing so the interpretation of the codes becomes contextual. For instance,
+you may need to know if the identifier came from an electricity meter or from a gas meter to fully
+interpret the datum. These codes are much more widely used in the end-user facing world at least,
+so you most likely want to use [`ReducedCode`] as well:
+
+```rust
+use obis::ReducedCode;
+
+let input = b"0-0:1.0.0(12345)";
+let (code, remainder) = ReducedCode::parse(input).expect("valid code should parse successfully");
+assert_eq!(code.a(), Some(0));
+assert_eq!(code.f(), None);
+// groups C and D are mandatory.
+assert_eq!(code.c(), 1);
+// The remainder can be further parsed as deescribed below.
+assert_eq!(remainder, b"(12345)");
+```
+
+Note that both [`Code::parse`] and [`ReducedCode::parse`] produce a remainder of the buffer that
+has not been parsed. This is particularly useful in applications and when handling protocols that
+use OBIS codes, as they commonly insert an OBIS code into a broader syntax of the protocol.
+Returning a remainder allows the entire datum to be parsed in a single pass without needing to first
+figure out the constituting parts.
